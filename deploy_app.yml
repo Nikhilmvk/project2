@@ -1,0 +1,51 @@
+- name: Deploy Java Application with Nginx
+  hosts: webserver
+  become: true
+  tasks:
+
+    - name: Update package list
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - git
+        state: present
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Clone Java application repository
+      ansible.builtin.git:
+        repo: "https://bitbucket.org/dptrealtime/java-login-app.git"
+        dest: "/root/java-login-app"
+        force: yes
+      become: yes
+
+    - name: Ensure required files exist
+      stat:
+        path: "{{ item }}"
+      register: file_check
+      loop:
+        - "/root/java-login-app/Dockerfile"
+        - "/root/java-login-app/docker-compose.yml"
+        - "/root/java-login-app/nginx/Dockerfile"
+
+    - name: Fail if required files are missing
+      fail:
+        msg: "{{ item.item }} is missing!"
+      when: not item.stat.exists
+      loop: "{{ file_check.results }}"
+
+    - name: Build and start Docker Compose services
+      shell: |
+        cd /root/java-login-app
+        docker-compose up -d
+      become: yes
+
